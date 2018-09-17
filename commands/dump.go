@@ -53,10 +53,11 @@ func (d *Dumper) Dump() {
 		cursor = nextCursor
 	}
 
-	d.Close()
+	d.CloseStream()
+	d.CloseClient()
 }
 
-func (d *Dumper) Close() {
+func (d *Dumper) CloseStream() {
 
 	if d.stream == nil {
 		return
@@ -118,6 +119,15 @@ func (d *Dumper) initWriter() bool {
 
 	d.stream = fs
 	return true
+}
+
+func (d *Dumper) CloseClient() {
+
+	if _, err := d.Client.Ping().Result(); err != nil {
+		return
+	}
+
+	d.Client.Close()
 }
 
 func Dump(host, password, path string) {
