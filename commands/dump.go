@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"encoding/base64"
 	"fmt"
 	"github.com/gin-gonic/gin/json"
 	"github.com/go-redis/redis"
@@ -96,6 +97,7 @@ func (d *Dumper) writeRecord(record *Record) {
 		return
 	}
 
+	record.Value = base64.StdEncoding.EncodeToString([]byte(record.Value))
 	jsonBytes, err := json.Marshal(record)
 	if err != nil {
 
