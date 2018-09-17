@@ -15,6 +15,7 @@ type Dumper struct {
 	Path       string
 	DatabaseId uint64
 	stream     *os.File
+	Count      uint64
 }
 
 func (d *Dumper) Dump() {
@@ -48,6 +49,11 @@ func (d *Dumper) Dump() {
 			record.DatabaseId = d.DatabaseId
 
 			d.writeRecord(record)
+			d.Count++
+
+			if d.Count%1000 == 0 {
+				d.PrintReport()
+			}
 		}
 
 		if nextCursor == 0 {
@@ -59,6 +65,8 @@ func (d *Dumper) Dump() {
 
 	d.CloseStream()
 	d.CloseClient()
+
+	d.PrintReport()
 }
 
 func (d *Dumper) CloseStream() {
@@ -133,6 +141,11 @@ func (d *Dumper) CloseClient() {
 	}
 
 	d.Client.Close()
+}
+
+func (d *Dumper) PrintReport() {
+
+	log.Printf("DB %d dumped %d Record(s).\n", d.DatabaseId, d.Count)
 }
 
 func Dump(host, password, path string) {
