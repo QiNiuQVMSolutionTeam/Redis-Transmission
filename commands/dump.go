@@ -10,9 +10,10 @@ import (
 )
 
 type Dumper struct {
-	Client *redis.Client
-	Path   string
-	stream *os.File
+	Client     *redis.Client
+	Path       string
+	DatabaseId uint64
+	stream     *os.File
 }
 
 func (d *Dumper) Dump() {
@@ -42,6 +43,8 @@ func (d *Dumper) Dump() {
 				log.Printf("Error: Get key ttl error, %s\n", err)
 				break
 			}
+
+			record.DatabaseId = d.DatabaseId
 
 			d.writeRecord(record)
 		}
@@ -133,15 +136,17 @@ func (d *Dumper) CloseClient() {
 func Dump(host, password, path string) {
 
 	databaseCount := getDatabaseCount(host, password)
-	for currentDatabase := 0; uint64(currentDatabase) < databaseCount; currentDatabase++ {
+	var currentDatabase uint64
+	for currentDatabase = 0; currentDatabase < databaseCount; currentDatabase++ {
 
 		dumper := &Dumper{
 			Client: redis.NewClient(&redis.Options{
 				Addr:     host,
-				Password: password,        // no password set
-				DB:       currentDatabase, // use default DB
+				Password: password,             // no password set
+				DB:       int(currentDatabase), // use default DB
 			}),
-			Path: path,
+			Path:       path,
+			DatabaseId: currentDatabase,
 		}
 		dumper.Dump()
 	}
