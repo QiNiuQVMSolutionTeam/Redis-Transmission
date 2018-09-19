@@ -15,7 +15,7 @@ redis-dump-restore -mode=restore -host=127.0.0.1:6379 [-password=Auth] [-input=/
 * **DUMP** dump file from redis node
 
 ```sh
-redis-dump-restore -mode=dump -host=127.0.0.1:6379 [-password=Auth] [-output=/path/to/file]
+redis-dump-restore -mode=dump -host=127.0.0.1:6379 [-password=Auth] [-output=/path/to/file] [-database-count=16]
 ```
 
 Options
@@ -40,6 +40,10 @@ Options
 + -output=_OUTPUT_
 
 > use _OUTPUT_ as output file
+
++ -database-count=_DATABASE-COUNT_
+
+> Specify the redis database count
 
 Examples
 -------
