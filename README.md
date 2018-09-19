@@ -2,9 +2,9 @@
 
 dump the data from redis-server and restore the data from dump file to redis-server.
 
-We're know the cloud redis service can't use slaveof to hot-migrate data.
+We know that the cloud redis service cannot use the slaveof command for hot migration,
 
-so write this tools to help you for cool migrate.
+so we wrote this tool to help you with the migration.
 
 * **RESTORE** use dumped file to target redis
 
