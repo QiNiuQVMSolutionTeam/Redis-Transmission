@@ -1,18 +1,16 @@
 ===========
 
-dump the data from redis-server and restore the data from dump file to redis-server.
 
-We know that the cloud redis service cannot use the slaveof command for hot migration,
+Due to that cloud provider usually does not support live data migration of a cloud redis service, this tool aims to dump data from one redis-server and restore the dumped data into another redis-server.
 
-so we wrote this tool to help you with the migration.
 
-* **RESTORE** use dumped file to target redis
+* **RESTORE** import dumped file to target redis-server
 
 ```sh
 redis-dump-restore -mode=restore -host=127.0.0.1:6379 [-password=Auth] [-input=/path/to/file]
 ```
 
-* **DUMP** dump file from redis node
+* **DUMP** export file from source redis-server
 
 ```sh
 redis-dump-restore -mode=dump -host=127.0.0.1:6379 [-password=Auth] [-output=/path/to/file] [-database-count=16]
