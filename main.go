@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"github.com/Luckyboys/RedisDumpRestore/commands"
+	"log"
+	"strconv"
 )
 
 const ModeDump = "dump"
@@ -12,11 +14,12 @@ const ModeRestore = "restore"
 func main() {
 
 	var (
-		mode     string
-		host     string
-		password string
-		output   string
-		input    string
+		mode                string
+		host                string
+		password            string
+		output              string
+		input               string
+		databaseCountString string
 	)
 
 	flag.StringVar(&mode, "mode", "", "-mode=[dump|restore]")
@@ -24,12 +27,26 @@ func main() {
 	flag.StringVar(&password, "password", "", "-password=your_password")
 	flag.StringVar(&output, "output", "dump.json", "-output=/path/to/file")
 	flag.StringVar(&input, "input", "dump.json", "-input=/path/to/file")
+	flag.StringVar(&databaseCountString, "database-count", "", "-database-count=16")
 
 	flag.Parse()
 
 	if mode == ModeDump {
 
-		commands.Dump(host, password, output)
+		var databaseCount uint64
+
+		if databaseCountString != "" {
+
+			var err error
+			databaseCount, err = strconv.ParseUint(databaseCountString, 10, 64)
+			if err != nil {
+
+				log.Printf("Parse database-count err, %s\n", err)
+				return
+			}
+		}
+
+		commands.Dump(host, password, output, databaseCount)
 
 	} else if mode == ModeRestore {
 
@@ -46,7 +63,7 @@ func printHelp() {
 
 	fmt.Print(`
 Usage:
-	redis-dump-restore -mode=[dump|restore] -host=127.0.0.1:6379 [-password=Auth] [-output=/path/to/file] [-input=/path/to/file]
+	redis-dump-restore -mode=[dump|restore] -host=127.0.0.1:6379 [-password=Auth] [-database-count] [-output=/path/to/file] [-input=/path/to/file]
 
 Options:
 	-mode=MODE                        Select dump mode, or restore mode. Options: Dump, Restore.

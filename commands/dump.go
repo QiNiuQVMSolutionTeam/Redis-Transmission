@@ -148,9 +148,12 @@ func (d *Dumper) PrintReport() {
 	log.Printf("DB %d dumped %d Record(s).\n", d.DatabaseId, d.Count)
 }
 
-func Dump(host, password, path string) {
+func Dump(host, password, path string, databaseCount uint64) {
 
-	databaseCount := getDatabaseCount(host, password)
+	if databaseCount == 0 {
+		databaseCount = getDatabaseCount(host, password)
+	}
+
 	var currentDatabase uint64
 	for currentDatabase = 0; currentDatabase < databaseCount; currentDatabase++ {
 
