@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/go-redis/redis"
 	"log"
+	"sync"
 	"time"
 )
 
@@ -41,24 +42,34 @@ func (s *Synchronizer) InitClients(sourceHost, sourcePassword, destinationHost, 
 	}
 }
 
-func (s *Synchronizer) Go() {
+func (s *Synchronizer) Go(syncTimes uint64) {
 
+	var wg sync.WaitGroup
 	log.Println("Starting synchronizer")
 	for _, worker := range s.Workers {
 
-		go func(worker *SyncWorker) {
+		wg.Add(1)
+		go func(worker *SyncWorker, syncTimes uint64) {
 			for {
 				if worker.Sync() <= 0 {
 
 					time.Sleep(time.Second)
 				}
+
+				if syncTimes > 0 {
+
+					syncTimes--
+					if syncTimes <= 0 {
+						break
+					}
+				}
 			}
-		}(worker)
+
+			wg.Done()
+		}(worker, syncTimes)
 	}
 
-	for {
-		time.Sleep(time.Hour)
-	}
+	wg.Wait()
 }
 
 func (w *SyncWorker) Sync() (count uint64) {
@@ -279,7 +290,7 @@ func (w *SyncWorker) removeDestinationKey(key string) (err error) {
 	return
 }
 
-func Sync(sourceHost, sourcePassword, destinationHost, destinationPassword string, databaseCount uint64) {
+func Sync(sourceHost, sourcePassword, destinationHost, destinationPassword string, databaseCount, syncTimes uint64) {
 
 	s := &Synchronizer{}
 	if databaseCount == 0 {
@@ -293,5 +304,5 @@ func Sync(sourceHost, sourcePassword, destinationHost, destinationPassword strin
 	}
 
 	s.InitClients(sourceHost, sourcePassword, destinationHost, destinationPassword, databaseCount)
-	s.Go()
+	s.Go(syncTimes)
 }

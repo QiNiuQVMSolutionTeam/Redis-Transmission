@@ -7,13 +7,19 @@ Due to that cloud provider usually does not support live data migration of a clo
 * **RESTORE** import dumped file to target redis-server
 
 ```sh
-redis-dump-restore -mode=restore -host=127.0.0.1:6379 [-password=Auth] [-input=/path/to/file]
+redis-transmission -mode=restore -host=127.0.0.1:6379 [-password=Auth] [-input=/path/to/file]
 ```
 
 * **DUMP** export file from source redis-server
 
 ```sh
-redis-dump-restore -mode=dump -host=127.0.0.1:6379 [-password=Auth] [-output=/path/to/file] [-database-count=16]
+redis-transmission -mode=dump -host=127.0.0.1:6379 [-password=Auth] [-output=/path/to/file] [-database-count=16]
+```
+
+* **SYNC** synchronize data from source redis-server to destination redis-server
+
+```sh
+redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378 [-source-password=Auth] [-destination-password=Auth] [-database-count=16] [-sync-times=Count]
 ```
 
 Options
@@ -43,20 +49,40 @@ Options
 
 > Specify the redis database count
 
++ -source=_NODE_
+
+> The source redis instance (host:port).
+
++ -destination=_NODE_
+
+> The destination redis instance (host:port).
+
++ -source-password=_PASSWORD_
+
+> The source redis authorization password, if empty then no use this parameter.
+
++ -destination-password=_PASSWORD_
+
+> The destination redis authorization password, if empty then no use this parameter.
+
++ -sync-times=_TIMES_
+
+> synchronization times, default loop execution. Do not fill in this parameter if you need to execute it in a loop
+
 Examples
 -------
 
 * **RESTORE**
 
 ```sh
-$ redis-dump-restore -mode=restore -input=./dump.json -host=127.0.0.1:6378
+$ redis-transmission -mode=restore -input=./dump.json -host=127.0.0.1:6378
 2018/09/17 23:22:30 Restored 9 Record(s).
 ```
 
 * **DUMP**
 
 ```sh
-$ redis-dump-restore -mode=dump -output=./dump.json
+$ redis-transmission -mode=dump -output=./dump.json
 2018/09/17 23:45:55 Dumped 9 Record(s).
 2018/09/17 23:45:55 Dumped 0 Record(s).
 2018/09/17 23:45:55 Dumped 0 Record(s).
@@ -74,7 +100,7 @@ $ redis-dump-restore -mode=dump -output=./dump.json
 2018/09/17 23:45:55 Dumped 0 Record(s).
 2018/09/17 23:45:55 Dumped 0 Record(s).
 
-$ redis-dump-restore -mode=dump -host=127.0.0.1:6379 -output=./dump.json
+$ redis-transmission -mode=dump -host=127.0.0.1:6379 -output=./dump.json
 2018/09/17 23:46:57 DB 0 dumped 9 Record(s).
 2018/09/17 23:46:57 DB 1 dumped 0 Record(s).
 2018/09/17 23:46:57 DB 2 dumped 0 Record(s).
@@ -92,3 +118,49 @@ $ redis-dump-restore -mode=dump -host=127.0.0.1:6379 -output=./dump.json
 2018/09/17 23:46:57 DB 14 dumped 0 Record(s).
 2018/09/17 23:46:57 DB 15 dumped 0 Record(s).
 ```
+
+* **SYNC**
+
+```sh
+$ redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378
+2018/09/20 16:42:48 Starting synchronizer
+2018/09/20 16:42:48 Start 0 database thread
+2018/09/20 16:42:48 Synchronized database(0) 1 records.
+2018/09/20 16:42:48 Start 0 database thread
+2018/09/20 16:42:48 Synchronized database(0) 1 records.
+2018/09/20 16:42:48 Start 0 database thread
+2018/09/20 16:42:48 Synchronized database(0) 1 records.
+2018/09/20 16:42:48 Start 0 database thread
+2018/09/20 16:42:48 Synchronized database(0) 1 records.
+2018/09/20 16:42:48 Start 0 database thread
+2018/09/20 16:42:48 Synchronized database(0) 1 records.
+2018/09/20 16:42:48 Start 0 database thread
+2018/09/20 16:42:48 Synchronized database(0) 1 records.
+2018/09/20 16:42:48 Start 0 database thread
+2018/09/20 16:42:48 Synchronized database(0) 1 records.
+^C
+
+$ redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378 -database-count=1
+2018/09/20 16:42:48 Starting synchronizer
+2018/09/20 16:42:48 Start 0 database thread
+2018/09/20 16:42:48 Synchronized database(0) 1 records.
+2018/09/20 16:42:48 Start 0 database thread
+2018/09/20 16:42:48 Synchronized database(0) 1 records.
+2018/09/20 16:42:48 Start 0 database thread
+2018/09/20 16:42:48 Synchronized database(0) 1 records.
+2018/09/20 16:42:48 Start 0 database thread
+2018/09/20 16:42:48 Synchronized database(0) 1 records.
+^C
+
+$ redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378 -database-count=1 -sync-times=4
+2018/09/20 16:42:48 Starting synchronizer
+2018/09/20 16:42:48 Start 0 database thread
+2018/09/20 16:42:48 Synchronized database(0) 1 records.
+2018/09/20 16:42:48 Start 0 database thread
+2018/09/20 16:42:48 Synchronized database(0) 1 records.
+2018/09/20 16:42:48 Start 0 database thread
+2018/09/20 16:42:48 Synchronized database(0) 1 records.
+2018/09/20 16:42:48 Start 0 database thread
+2018/09/20 16:42:48 Synchronized database(0) 1 records.
+```
+

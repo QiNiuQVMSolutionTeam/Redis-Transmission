@@ -25,6 +25,7 @@ func main() {
 		destinationHost     string
 		sourcePassword      string
 		destinationPassword string
+		syncTimesString     string
 	)
 
 	flag.StringVar(&mode, "mode", "", "-mode=[dump|restore]")
@@ -37,6 +38,7 @@ func main() {
 	flag.StringVar(&sourcePassword, "source-password", "", "-source-password=your_password")
 	flag.StringVar(&destinationHost, "destination", "", "-destination=127.0.0.1:6378")
 	flag.StringVar(&destinationPassword, "destination-password", "", "-destination-password=your_password")
+	flag.StringVar(&syncTimesString, "sync-times", "0", "-sync-times=0")
 
 	flag.Parse()
 
@@ -63,7 +65,13 @@ func main() {
 			log.Printf("Parse database-count err, %s\n", err)
 			return
 		}
-		commands.Sync(sourceHost, sourcePassword, destinationHost, destinationPassword, databaseCount)
+		syncTimes, err := getSyncTimes(syncTimesString)
+		if err != nil {
+
+			log.Printf("Parse database-count err, %s\n", err)
+			return
+		}
+		commands.Sync(sourceHost, sourcePassword, destinationHost, destinationPassword, databaseCount, syncTimes)
 
 	} else {
 
@@ -80,7 +88,7 @@ Usage:
 
 	redis-transmission -mode=restore -host=127.0.0.1:6379 [-password=Auth] [-input=/path/to/file]
 
-	redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378 [-source-password=Auth] [-destination-password=Auth]
+	redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378 [-source-password=Auth] [-destination-password=Auth] [-database-count=16] [-sync-times=Count]
 
 Options:
 	-mode=MODE                        Select dump mode, or restore mode. Options: Dump, Restore.
@@ -93,6 +101,7 @@ Options:
 	-destination=NODE                 The destination redis instance (host:port).
 	-source-password=Auth             The source redis authorization password, if empty then no use this parameter.
 	-destination-password=Auth        The destination redis authorization password, if empty then no use this parameter.
+	-sync-times=TIMES                 synchronization times, default loop execution. Do not fill in this parameter if you need to execute it in a loop
 
 Examples:
 	$ redis-transmission -mode=dump
@@ -108,6 +117,7 @@ Examples:
 	$ redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378
 	$ redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378 -database-count=16
 	$ redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378 -source-password=Password -destination-password=Password
+	$ redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378 -source-password=Password -destination-password=Password -database-count=1 -sync-times=1
 `)
 }
 
@@ -119,6 +129,22 @@ func getDatabaseCount(databaseCountString string) (databaseCount uint64, err err
 	}
 
 	databaseCount, err = strconv.ParseUint(databaseCountString, 10, 64)
+	if err != nil {
+
+		return
+	}
+
+	return
+}
+
+func getSyncTimes(syncTimesString string) (syncTimes uint64, err error) {
+
+	if syncTimesString == "" {
+
+		return
+	}
+
+	syncTimes, err = strconv.ParseUint(syncTimesString, 10, 64)
 	if err != nil {
 
 		return
