@@ -12,10 +12,11 @@ type Synchronizer struct {
 }
 
 type SyncWorker struct {
-	DatabaseId        uint64
-	SourceClient      *redis.Client
-	DestinationClient *redis.Client
-	KeysPipeline      chan string
+	DatabaseId              uint64
+	SourceClient            *redis.Client
+	DestinationClient       *redis.Client
+	KeysPipeline            chan string
+	DestinationKeysPipeline chan string
 }
 
 func (s *Synchronizer) InitClients(sourceHost, sourcePassword, destinationHost, destinationPassword string, dbCount uint64) {
@@ -68,13 +69,18 @@ func (w *SyncWorker) Sync() (count uint64) {
 
 	count = w.WriteData()
 
+	go w.ReadDestinationKeys()
+	count += w.CheckNotExistKeys()
+
 	log.Printf("Synchronized database(%d) %d records.", w.DatabaseId, count)
+
 	return
 }
 
 func (w *SyncWorker) InitChannel() {
 
 	w.KeysPipeline = make(chan string)
+	w.DestinationKeysPipeline = make(chan string)
 }
 
 func (w *SyncWorker) ReadKeys() {
@@ -181,6 +187,95 @@ func (w *SyncWorker) restore(record TransferRecord) (err error) {
 		_, err = w.DestinationClient.RestoreReplace(record.Key, 0, record.Value).Result()
 	}
 
+	return
+}
+
+func (w *SyncWorker) ReadDestinationKeys() {
+
+	var currentCursor uint64
+	for {
+
+		keys, nextCursor, err := w.DestinationClient.Scan(currentCursor, "", 100).Result()
+
+		if err != nil {
+
+			log.Printf("Scan destination database(%d) error , %s\n", currentCursor, err)
+			break
+		}
+
+		for _, key := range keys {
+
+			w.DestinationKeysPipeline <- key
+		}
+
+		if nextCursor == 0 {
+
+			break
+		}
+
+		currentCursor = nextCursor
+	}
+
+	close(w.DestinationKeysPipeline)
+}
+
+func (w *SyncWorker) CheckNotExistKeys() (count uint64) {
+
+	for {
+		key := w.getDestinationKey()
+		if key == "" {
+			break
+		}
+
+		if w.sourceExist(key) {
+
+			continue
+		}
+
+		err := w.removeDestinationKey(key)
+		if err != nil {
+			log.Printf("Remove key \"%s\" error, %s\n", key, err)
+			continue
+		}
+
+		count++
+	}
+
+	return
+}
+
+func (w *SyncWorker) getDestinationKey() string {
+
+	var key string
+
+	for {
+		select {
+		case key = <-w.DestinationKeysPipeline:
+
+			return key
+
+		default:
+
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+	}
+}
+
+func (w *SyncWorker) sourceExist(key string) bool {
+
+	isExist, err := w.SourceClient.Exists(key).Result()
+	if err != nil {
+		log.Printf("Judge Key in source error , key: %s , error: %s\n", key, err)
+		return true
+	}
+
+	return isExist != 0
+}
+
+func (w *SyncWorker) removeDestinationKey(key string) (err error) {
+
+	_, err = w.DestinationClient.Del(key).Result()
 	return
 }
 
