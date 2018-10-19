@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"fmt"
 	"github.com/go-redis/redis"
 	"log"
 	"sync"
@@ -186,14 +185,8 @@ func (w *SyncWorker) dump(key string) (record TransferRecord, err error) {
 
 func (w *SyncWorker) restore(record TransferRecord) (err error) {
 
-	duration, err := time.ParseDuration(fmt.Sprintf("%ds", record.TTL))
-	if err != nil {
-		log.Printf("Parse ttl(%d) error, %s\n", record.TTL, err)
-		return
-	}
-
-	if duration > 0 {
-		_, err = w.DestinationClient.RestoreReplace(record.Key, duration, record.Value).Result()
+	if record.TTL > 0 {
+		_, err = w.DestinationClient.RestoreReplace(record.Key, record.TTL, record.Value).Result()
 	} else {
 		_, err = w.DestinationClient.RestoreReplace(record.Key, 0, record.Value).Result()
 	}
