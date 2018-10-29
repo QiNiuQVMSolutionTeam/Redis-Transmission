@@ -13,13 +13,13 @@ redis-transmission -mode=restore -host=127.0.0.1:6379 [-password=Auth] [-input=/
 * **DUMP** export file from source redis-server
 
 ```sh
-redis-transmission -mode=dump -host=127.0.0.1:6379 [-password=Auth] [-output=/path/to/file] [-database-count=16]
+redis-transmission -mode=dump -host=127.0.0.1:6379 [-password=Auth] [-output=/path/to/file] [-database-count=16] [-thread-count=4]
 ```
 
 * **SYNC** synchronize data from source redis-server to destination redis-server
 
 ```sh
-redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378 [-source-password=Auth] [-destination-password=Auth] [-database-count=16] [-sync-times=Count]
+redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378 [-source-password=Auth] [-destination-password=Auth] [-database-count=16] [-sync-times=Count] [-thread-count=4]
 ```
 
 Options
@@ -68,6 +68,10 @@ Options
 + -sync-times=_TIMES_
 
 > synchronization times, default loop execution. Do not fill in this parameter if you need to execute it in a loop
+
++ -thread-count=_THREAD-COUNT_
+
+> Number of concurrent executions, if emtpy then use cpu cores count.
 
 Examples
 -------
