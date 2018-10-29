@@ -260,10 +260,11 @@ func Dump(host, password, path string, databaseCount uint64, threadCount int) {
 func createNewClient(host, password string, db, poolSize int) *redis.Client {
 
 	return redis.NewClient(&redis.Options{
-		Addr:     host,
-		Password: password,
-		DB:       db,
-		PoolSize: poolSize,
+		Addr:        host,
+		Password:    password,
+		DB:          db,
+		PoolSize:    poolSize,
+		ReadTimeout: 10,
 	})
 }
 
@@ -272,8 +273,8 @@ func getDatabaseCount(host, password string) uint64 {
 
 	client := redis.NewClient(&redis.Options{
 		Addr:     host,
-		Password: password, // no password set
-		DB:       0,        // use default DB
+		Password: password,
+		DB:       0, // use default DB
 	})
 
 	databases, err := client.ConfigGet("databases").Result()

@@ -118,9 +118,10 @@ func (r *Restorer) getClient(dbId uint64) (client *redis.Client) {
 	}
 
 	r.Client[dbId] = redis.NewClient(&redis.Options{
-		Addr:     r.Host,
-		Password: r.Password, // no password set
-		DB:       int(dbId),  // use default DB
+		Addr:         r.Host,
+		Password:     r.Password,
+		DB:           int(dbId),
+		WriteTimeout: 10,
 	})
 
 	return r.Client[dbId]
