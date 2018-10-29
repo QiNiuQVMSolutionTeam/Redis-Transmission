@@ -1,42 +1,54 @@
 package commands
 
 import (
+	"github.com/QiNiuQVMSolutionTeam/Redis-Transmission/lib"
 	"github.com/go-redis/redis"
+	"go.uber.org/atomic"
 	"log"
 	"sync"
 	"time"
 )
 
 type Synchronizer struct {
-	Workers map[uint64]*SyncWorker
+	Workers map[uint64]*SyncOneRound
 }
 
-type SyncWorker struct {
+type SyncOneRound struct {
 	DatabaseId              uint64
 	SourceClient            *redis.Client
 	DestinationClient       *redis.Client
 	KeysPipeline            chan string
 	DestinationKeysPipeline chan string
+	Workers                 *lib.Workers
+	ThreadCount             int
 }
 
-func (s *Synchronizer) InitClients(sourceHost, sourcePassword, destinationHost, destinationPassword string, dbCount uint64) {
+type SyncWorker struct {
+	SourceClient      *redis.Client
+	DestinationClient *redis.Client
+}
 
-	s.Workers = make(map[uint64]*SyncWorker, dbCount)
+func (s *Synchronizer) InitClients(sourceHost, sourcePassword, destinationHost, destinationPassword string, dbCount uint64, threadCount int) {
+
+	s.Workers = make(map[uint64]*SyncOneRound, dbCount)
 
 	for dbId := uint64(0); dbId < dbCount; dbId++ {
 
-		s.Workers[dbId] = &SyncWorker{
+		s.Workers[dbId] = &SyncOneRound{
 			DatabaseId: dbId,
 			SourceClient: redis.NewClient(&redis.Options{
 				Addr:     sourceHost,
-				Password: sourcePassword, // no password set
-				DB:       int(dbId),      // use default DB
+				Password: sourcePassword,
+				DB:       int(dbId),
+				PoolSize: threadCount,
 			}),
 			DestinationClient: redis.NewClient(&redis.Options{
 				Addr:     destinationHost,
-				Password: destinationPassword, // no password set
-				DB:       int(dbId),           // use default DB
+				Password: destinationPassword,
+				DB:       int(dbId),
+				PoolSize: threadCount,
 			}),
+			ThreadCount: threadCount,
 		}
 	}
 }
@@ -48,7 +60,7 @@ func (s *Synchronizer) Go(syncTimes uint64) {
 	for _, worker := range s.Workers {
 
 		wg.Add(1)
-		go func(worker *SyncWorker, syncTimes uint64) {
+		go func(worker *SyncOneRound, syncTimes uint64) {
 			for {
 				if worker.Sync() <= 0 {
 
@@ -71,34 +83,41 @@ func (s *Synchronizer) Go(syncTimes uint64) {
 	wg.Wait()
 }
 
-func (w *SyncWorker) Sync() (count uint64) {
+func (round *SyncOneRound) Sync() (count uint64) {
 
-	log.Printf("Start %d database thread\n", w.DatabaseId)
-	w.InitChannel()
-	go w.ReadKeys()
+	log.Printf("Start %d database thread\n", round.DatabaseId)
+	round.InitChannel()
+	go round.ReadKeys()
 
-	count = w.WriteData()
+	count = round.SyncData()
 
-	go w.ReadDestinationKeys()
-	count += w.CheckNotExistKeys()
+	go round.ReadDestinationKeys()
+	count += round.CheckNotExistKeys()
 
-	log.Printf("Synchronized database(%d) %d records.", w.DatabaseId, count)
+	log.Printf("Synchronized database(%d) %d records.", round.DatabaseId, count)
 
 	return
 }
 
-func (w *SyncWorker) InitChannel() {
+func (round *SyncOneRound) InitChannel() {
 
-	w.KeysPipeline = make(chan string)
-	w.DestinationKeysPipeline = make(chan string)
+	round.KeysPipeline = make(chan string, 1000)
+	round.DestinationKeysPipeline = make(chan string, 1000)
+	round.Workers = lib.NewWorkers(round.ThreadCount, func() interface{} {
+		return &SyncWorker{
+			SourceClient:      round.SourceClient,
+			DestinationClient: round.DestinationClient,
+		}
+	})
 }
 
-func (w *SyncWorker) ReadKeys() {
+func (round *SyncOneRound) ReadKeys() {
 
-	var currentCursor uint64
+	log.Printf("Scan database(%d) start\n", round.DatabaseId)
+	var currentCursor, keyCount uint64
 	for {
 
-		keys, nextCursor, err := w.SourceClient.Scan(currentCursor, "", 100).Result()
+		keys, nextCursor, err := round.SourceClient.Scan(currentCursor, "", 1000).Result()
 
 		if err != nil {
 
@@ -108,7 +127,7 @@ func (w *SyncWorker) ReadKeys() {
 
 		for _, key := range keys {
 
-			w.KeysPipeline <- key
+			round.KeysPipeline <- key
 		}
 
 		if nextCursor == 0 {
@@ -117,43 +136,57 @@ func (w *SyncWorker) ReadKeys() {
 		}
 
 		currentCursor = nextCursor
+		keyCount += uint64(len(keys))
 	}
 
-	close(w.KeysPipeline)
+	close(round.KeysPipeline)
+	log.Printf("Scan database(%d) finished\n", round.DatabaseId)
 }
 
-func (w *SyncWorker) WriteData() (count uint64) {
+func (round *SyncOneRound) SyncData() (uint64) {
 
+	var count atomic.Uint64
 	for {
-		key := w.getKey()
+		key := round.getKey()
 		if key == "" {
 			break
 		}
 
-		record, err := w.dump(key)
-		if err != nil {
-			log.Printf("Dump key \"%s\" error, %s\n", key, err)
-			continue
-		}
-		err = w.restore(record)
-		if err != nil {
-			log.Printf("Restore key \"%s\" error, %s\n", key, err)
-			continue
-		}
+		worker := round.getWorker()
 
-		count++
+		go func(key string) {
+
+			defer func() {
+				round.putWorker(worker)
+			}()
+
+			record, err := worker.dump(key)
+			if err != nil {
+				log.Printf("Dump key \"%s\" error, %s\n", key, err)
+				return
+			}
+			err = worker.restore(record)
+			if err != nil {
+				log.Printf("Restore key \"%s\" error, %s\n", key, err)
+				return
+			}
+
+			count.Inc()
+		}(key)
 	}
 
-	return
+	round.Workers.Wait()
+
+	return count.Load()
 }
 
-func (w *SyncWorker) getKey() string {
+func (round *SyncOneRound) getKey() string {
 
 	var key string
 
 	for {
 		select {
-		case key = <-w.KeysPipeline:
+		case key = <-round.KeysPipeline:
 
 			return key
 
@@ -165,41 +198,13 @@ func (w *SyncWorker) getKey() string {
 	}
 }
 
-func (w *SyncWorker) dump(key string) (record TransferRecord, err error) {
+func (round *SyncOneRound) ReadDestinationKeys() {
 
-	record.Key = key
-	record.TTL, err = w.SourceClient.TTL(key).Result()
-	if err != nil {
-
-		return
-	}
-
-	record.Value, err = w.SourceClient.Dump(key).Result()
-	if err != nil {
-
-		return
-	}
-
-	return
-}
-
-func (w *SyncWorker) restore(record TransferRecord) (err error) {
-
-	if record.TTL > 0 {
-		_, err = w.DestinationClient.RestoreReplace(record.Key, record.TTL, record.Value).Result()
-	} else {
-		_, err = w.DestinationClient.RestoreReplace(record.Key, 0, record.Value).Result()
-	}
-
-	return
-}
-
-func (w *SyncWorker) ReadDestinationKeys() {
-
+	log.Printf("Scan destination database(%d) start\n", round.DatabaseId)
 	var currentCursor uint64
 	for {
 
-		keys, nextCursor, err := w.DestinationClient.Scan(currentCursor, "", 100).Result()
+		keys, nextCursor, err := round.DestinationClient.Scan(currentCursor, "", 100).Result()
 
 		if err != nil {
 
@@ -209,7 +214,7 @@ func (w *SyncWorker) ReadDestinationKeys() {
 
 		for _, key := range keys {
 
-			w.DestinationKeysPipeline <- key
+			round.DestinationKeysPipeline <- key
 		}
 
 		if nextCursor == 0 {
@@ -220,41 +225,54 @@ func (w *SyncWorker) ReadDestinationKeys() {
 		currentCursor = nextCursor
 	}
 
-	close(w.DestinationKeysPipeline)
+	close(round.DestinationKeysPipeline)
+	log.Printf("Scan destination database(%d) finished\n", round.DatabaseId)
 }
 
-func (w *SyncWorker) CheckNotExistKeys() (count uint64) {
+func (round *SyncOneRound) CheckNotExistKeys() (uint64) {
 
+	var count atomic.Uint64
 	for {
-		key := w.getDestinationKey()
+		key := round.getDestinationKey()
 		if key == "" {
 			break
 		}
 
-		if w.sourceExist(key) {
+		worker := round.getWorker()
 
-			continue
-		}
+		go func(key string) {
 
-		err := w.removeDestinationKey(key)
-		if err != nil {
-			log.Printf("Remove key \"%s\" error, %s\n", key, err)
-			continue
-		}
+			defer func() {
+				round.putWorker(worker)
+			}()
 
-		count++
+			if worker.sourceExist(key) {
+
+				return
+			}
+
+			err := worker.removeDestinationKey(key)
+			if err != nil {
+				log.Printf("Remove key \"%s\" error, %s\n", key, err)
+				return
+			}
+
+			count.Inc()
+		}(key)
 	}
 
-	return
+	round.Workers.Wait()
+
+	return count.Load()
 }
 
-func (w *SyncWorker) getDestinationKey() string {
+func (round *SyncOneRound) getDestinationKey() string {
 
 	var key string
 
 	for {
 		select {
-		case key = <-w.DestinationKeysPipeline:
+		case key = <-round.DestinationKeysPipeline:
 
 			return key
 
@@ -266,9 +284,48 @@ func (w *SyncWorker) getDestinationKey() string {
 	}
 }
 
-func (w *SyncWorker) sourceExist(key string) bool {
+func (round *SyncOneRound) getWorker() *SyncWorker {
 
-	isExist, err := w.SourceClient.Exists(key).Result()
+	return round.Workers.Get().(*SyncWorker)
+}
+
+func (round *SyncOneRound) putWorker(worker *SyncWorker) {
+
+	round.Workers.Put(worker)
+}
+
+func (round *SyncWorker) dump(key string) (record TransferRecord, err error) {
+
+	record.Key = key
+	record.TTL, err = round.SourceClient.TTL(key).Result()
+	if err != nil {
+
+		return
+	}
+
+	record.Value, err = round.SourceClient.Dump(key).Result()
+	if err != nil {
+
+		return
+	}
+
+	return
+}
+
+func (round *SyncWorker) restore(record TransferRecord) (err error) {
+
+	if record.TTL > 0 {
+		_, err = round.DestinationClient.RestoreReplace(record.Key, record.TTL, record.Value).Result()
+	} else {
+		_, err = round.DestinationClient.RestoreReplace(record.Key, 0, record.Value).Result()
+	}
+
+	return
+}
+
+func (round *SyncWorker) sourceExist(key string) bool {
+
+	isExist, err := round.SourceClient.Exists(key).Result()
 	if err != nil {
 		log.Printf("Judge Key in source error , key: %s , error: %s\n", key, err)
 		return true
@@ -277,13 +334,13 @@ func (w *SyncWorker) sourceExist(key string) bool {
 	return isExist != 0
 }
 
-func (w *SyncWorker) removeDestinationKey(key string) (err error) {
+func (round *SyncWorker) removeDestinationKey(key string) (err error) {
 
-	_, err = w.DestinationClient.Del(key).Result()
+	_, err = round.DestinationClient.Del(key).Result()
 	return
 }
 
-func Sync(sourceHost, sourcePassword, destinationHost, destinationPassword string, databaseCount, syncTimes uint64) {
+func Sync(sourceHost, sourcePassword, destinationHost, destinationPassword string, databaseCount, syncTimes uint64, threadCount int) {
 
 	s := &Synchronizer{}
 	if databaseCount == 0 {
@@ -296,6 +353,6 @@ func Sync(sourceHost, sourcePassword, destinationHost, destinationPassword strin
 		return
 	}
 
-	s.InitClients(sourceHost, sourcePassword, destinationHost, destinationPassword, databaseCount)
+	s.InitClients(sourceHost, sourcePassword, destinationHost, destinationPassword, databaseCount, threadCount)
 	s.Go(syncTimes)
 }

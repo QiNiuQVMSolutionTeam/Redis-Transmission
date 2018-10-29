@@ -87,7 +87,21 @@ func main() {
 			log.Printf("Parse database-count err, %s\n", err)
 			return
 		}
-		commands.Sync(sourceHost, sourcePassword, destinationHost, destinationPassword, databaseCount, syncTimes)
+
+		threadCount, err := getThreadCount(threadCountString)
+		if err != nil {
+
+			log.Printf("Parse thread-count error, %s\n", err)
+			return
+		}
+
+		if threadCount <= 0 {
+
+			log.Printf("thread-count parameter error, %s\n", err)
+			return
+		}
+
+		commands.Sync(sourceHost, sourcePassword, destinationHost, destinationPassword, databaseCount, syncTimes, threadCount)
 
 	} else {
 
