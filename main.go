@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/QiNiuQVMSolutionTeam/Redis-Transmission/commands"
 	"log"
+	"runtime"
 	"strconv"
 )
 
@@ -26,6 +27,7 @@ func main() {
 		sourcePassword      string
 		destinationPassword string
 		syncTimesString     string
+		threadCountString   string
 	)
 
 	flag.StringVar(&mode, "mode", "", "-mode=[dump|restore]")
@@ -39,6 +41,7 @@ func main() {
 	flag.StringVar(&destinationHost, "destination", "", "-destination=127.0.0.1:6378")
 	flag.StringVar(&destinationPassword, "destination-password", "", "-destination-password=your_password")
 	flag.StringVar(&syncTimesString, "sync-times", "0", "-sync-times=0")
+	flag.StringVar(&threadCountString, "thread-count", strconv.Itoa(runtime.NumCPU()), "-thread-count=4")
 
 	flag.Parse()
 
@@ -47,11 +50,24 @@ func main() {
 		databaseCount, err := getDatabaseCount(databaseCountString)
 		if err != nil {
 
-			log.Printf("Parse database-count err, %s\n", err)
+			log.Printf("Parse database-count error, %s\n", err)
 			return
 		}
 
-		commands.Dump(host, password, output, databaseCount)
+		threadCount, err := getThreadCount(threadCountString)
+		if err != nil {
+
+			log.Printf("Parse thread-count error, %s\n", err)
+			return
+		}
+
+		if threadCount <= 0 {
+
+			log.Printf("thread-count parameter error, %s\n", err)
+			return
+		}
+
+		commands.Dump(host, password, output, databaseCount, threadCount)
 
 	} else if mode == ModeRestore {
 
@@ -109,6 +125,7 @@ Examples:
 	$ redis-transmission -mode=dump -host=127.0.0.1:6379 -output=/tmp/dump.json
 	$ redis-transmission -mode=dump -host=127.0.0.1:6379 -database-count=16 -output=/tmp/dump.json
 	$ redis-transmission -mode=dump -host=127.0.0.1:6379 -password=Password -output=/tmp/dump.json
+	$ redis-transmission -mode=dump -host=127.0.0.1:6379 -password=Password -output=/tmp/dump.json -thread-count=4
 	$ redis-transmission -mode=restore
 	$ redis-transmission -mode=restore -host=127.0.0.1:6379
 	$ redis-transmission -mode=restore -host=127.0.0.1:6379 -input=/tmp/dump.json
@@ -134,6 +151,23 @@ func getDatabaseCount(databaseCountString string) (databaseCount uint64, err err
 		return
 	}
 
+	return
+}
+
+func getThreadCount(threadCountString string) (threadCount int, err error) {
+
+	if threadCountString == "" {
+
+		return
+	}
+
+	count, err := strconv.ParseInt(threadCountString, 10, 64)
+	if err != nil {
+
+		return
+	}
+
+	threadCount = int(count)
 	return
 }
 
