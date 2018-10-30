@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 )
 
 type Dumper struct {
@@ -264,7 +265,7 @@ func createNewClient(host, password string, db, poolSize int) *redis.Client {
 		Password:    password,
 		DB:          db,
 		PoolSize:    poolSize,
-		ReadTimeout: 10,
+		ReadTimeout: 10 * time.Second,
 	})
 }
 
@@ -276,6 +277,8 @@ func getDatabaseCount(host, password string) uint64 {
 		Password: password,
 		DB:       0, // use default DB
 	})
+
+	defer client.Close()
 
 	databases, err := client.ConfigGet("databases").Result()
 	if err != nil {
