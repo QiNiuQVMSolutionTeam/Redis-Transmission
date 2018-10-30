@@ -158,7 +158,7 @@ Examples:
 	$ redis-transmission -mode=restore -host=127.0.0.1:6379
 	$ redis-transmission -mode=restore -host=127.0.0.1:6379 -input=/tmp/dump.json
 	$ redis-transmission -mode=restore -host=127.0.0.1:6379 -password=Password -input=/tmp/dump.json
-	$ redis-transmission -mode=restore -host=127.0.0.1:6379 -password=Password -input=/tmp/dump.json
+	$ redis-transmission -mode=restore -host=127.0.0.1:6379 -password=Password -input=/tmp/dump.json -replace-restore=0
 	$ redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378
 	$ redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378 -thread-count=16
 	$ redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378 -database-count=16
