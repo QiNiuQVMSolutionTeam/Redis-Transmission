@@ -73,6 +73,10 @@ Options
 
 > Number of concurrent executions, if emtpy then use cpu cores count.
 
++ -replace-restore=_[1|0]_
+
+> If the destination-side not support restore command use replace option, please use 0 to off this feature, when off this feature, it will remove key before restore command executive, if empty then use replace option.
+
 Examples
 -------
 

@@ -21,6 +21,7 @@ type SyncOneRound struct {
 	DestinationKeysPipeline chan string
 	Workers                 *lib.Workers
 	ThreadCount             int
+	IsSupportReplace        bool
 }
 
 type SyncWorker struct {
@@ -28,7 +29,7 @@ type SyncWorker struct {
 	DestinationClient *redis.Client
 }
 
-func (s *Synchronizer) InitClients(sourceHost, sourcePassword, destinationHost, destinationPassword string, dbCount uint64, threadCount int) {
+func (s *Synchronizer) InitClients(sourceHost, sourcePassword, destinationHost, destinationPassword string, dbCount uint64, threadCount int, isSupportReplace bool) {
 
 	s.Workers = make(map[uint64]*SyncOneRound, dbCount)
 
@@ -51,7 +52,8 @@ func (s *Synchronizer) InitClients(sourceHost, sourcePassword, destinationHost, 
 				ReadTimeout:  10 * time.Second,
 				WriteTimeout: 10 * time.Second,
 			}),
-			ThreadCount: threadCount,
+			ThreadCount:      threadCount,
+			IsSupportReplace: isSupportReplace,
 		}
 	}
 }
@@ -168,7 +170,14 @@ func (round *SyncOneRound) SyncData() (uint64) {
 				log.Printf("Dump key \"%s\" error, %s\n", key, err)
 				return
 			}
-			err = worker.restore(record)
+
+			if !round.IsSupportReplace {
+				worker.removeDestinationKey(record.Key)
+				err = worker.restore(record)
+			} else {
+				err = worker.restoreReplace(record)
+			}
+
 			if err != nil {
 				log.Printf("Restore key \"%s\" error, %s\n", key, err)
 				return
@@ -315,12 +324,23 @@ func (round *SyncWorker) dump(key string) (record TransferRecord, err error) {
 	return
 }
 
-func (round *SyncWorker) restore(record TransferRecord) (err error) {
+func (round *SyncWorker) restoreReplace(record TransferRecord) (err error) {
 
 	if record.TTL > 0 {
 		_, err = round.DestinationClient.RestoreReplace(record.Key, record.TTL, record.Value).Result()
 	} else {
 		_, err = round.DestinationClient.RestoreReplace(record.Key, 0, record.Value).Result()
+	}
+
+	return
+}
+
+func (round *SyncWorker) restore(record TransferRecord) (err error) {
+
+	if record.TTL > 0 {
+		_, err = round.DestinationClient.Restore(record.Key, record.TTL, record.Value).Result()
+	} else {
+		_, err = round.DestinationClient.Restore(record.Key, 0, record.Value).Result()
 	}
 
 	return
@@ -343,19 +363,80 @@ func (round *SyncWorker) removeDestinationKey(key string) (err error) {
 	return
 }
 
-func Sync(sourceHost, sourcePassword, destinationHost, destinationPassword string, databaseCount, syncTimes uint64, threadCount int) {
+type SyncLauncher struct {
+	SourceHost              string
+	SourcePassword          string
+	DestinationHost         string
+	DestinationPassword     string
+	DatabaseCount           uint64
+	SyncTimes               uint64
+	ThreadCount             int
+	IsSupportReplaceRestore bool
+}
+
+func (launcher *SyncLauncher) SetSourceHost(sourceHost string) *SyncLauncher {
+
+	launcher.SourceHost = sourceHost
+	return launcher
+}
+
+func (launcher *SyncLauncher) SetDestinationHost(destinationHost string) *SyncLauncher {
+
+	launcher.DestinationHost = destinationHost
+	return launcher
+}
+
+func (launcher *SyncLauncher) SetSourcePassword(sourcePassword string) *SyncLauncher {
+
+	launcher.SourcePassword = sourcePassword
+	return launcher
+}
+
+func (launcher *SyncLauncher) SetDestinationPassword(destinationPassword string) *SyncLauncher {
+
+	launcher.DestinationPassword = destinationPassword
+	return launcher
+}
+
+func (launcher *SyncLauncher) SetDatabaseCount(databaseCount uint64) *SyncLauncher {
+
+	launcher.DatabaseCount = databaseCount
+	return launcher
+}
+
+func (launcher *SyncLauncher) SetSyncTimes(syncTimes uint64) *SyncLauncher {
+
+	launcher.SyncTimes = syncTimes
+	return launcher
+}
+
+func (launcher *SyncLauncher) SetThreadCount(threadCount int) *SyncLauncher {
+
+	launcher.ThreadCount = threadCount
+	return launcher
+}
+
+func (launcher *SyncLauncher) SetIsSupportReplaceRestore(isSupportReplaceRestore bool) *SyncLauncher {
+
+	launcher.IsSupportReplaceRestore = isSupportReplaceRestore
+	return launcher
+}
+
+func (launcher *SyncLauncher) Launch() {
 
 	s := &Synchronizer{}
-	if databaseCount == 0 {
-		databaseCount = getDatabaseCount(sourceHost, sourcePassword)
+	if launcher.DatabaseCount == 0 {
+		launcher.DatabaseCount = getDatabaseCount(launcher.SourceHost, launcher.SourcePassword)
 	}
 
-	if databaseCount == 0 {
+	if launcher.DatabaseCount == 0 {
 
 		log.Println("Get database count error.")
 		return
 	}
 
-	s.InitClients(sourceHost, sourcePassword, destinationHost, destinationPassword, databaseCount, threadCount)
-	s.Go(syncTimes)
+	s.InitClients(launcher.SourceHost, launcher.SourcePassword,
+		launcher.DestinationHost, launcher.DestinationPassword,
+		launcher.DatabaseCount, launcher.ThreadCount, launcher.IsSupportReplaceRestore)
+	s.Go(launcher.SyncTimes)
 }

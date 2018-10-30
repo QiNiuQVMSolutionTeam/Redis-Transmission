@@ -16,18 +16,19 @@ const ModeSync = "sync"
 func main() {
 
 	var (
-		mode                string
-		host                string
-		password            string
-		output              string
-		input               string
-		databaseCountString string
-		sourceHost          string
-		destinationHost     string
-		sourcePassword      string
-		destinationPassword string
-		syncTimesString     string
-		threadCountString   string
+		mode                          string
+		host                          string
+		password                      string
+		output                        string
+		input                         string
+		databaseCountString           string
+		sourceHost                    string
+		destinationHost               string
+		sourcePassword                string
+		destinationPassword           string
+		syncTimesString               string
+		threadCountString             string
+		isSupportReplaceRestoreString string
 	)
 
 	flag.StringVar(&mode, "mode", "", "-mode=[dump|restore]")
@@ -42,6 +43,7 @@ func main() {
 	flag.StringVar(&destinationPassword, "destination-password", "", "-destination-password=your_password")
 	flag.StringVar(&syncTimesString, "sync-times", "0", "-sync-times=0")
 	flag.StringVar(&threadCountString, "thread-count", strconv.Itoa(runtime.NumCPU()), "-thread-count=4")
+	flag.StringVar(&isSupportReplaceRestoreString, "replace-restore", "1", "-replace-restore=1")
 
 	flag.Parse()
 
@@ -101,7 +103,17 @@ func main() {
 			return
 		}
 
-		commands.Sync(sourceHost, sourcePassword, destinationHost, destinationPassword, databaseCount, syncTimes, threadCount)
+		launcher := &commands.SyncLauncher{}
+		launcher.
+			SetSourceHost(sourceHost).
+			SetSourcePassword(sourcePassword).
+			SetDestinationHost(destinationHost).
+			SetDestinationPassword(destinationPassword).
+			SetDatabaseCount(databaseCount).
+			SetSyncTimes(syncTimes).
+			SetThreadCount(threadCount).
+			SetIsSupportReplaceRestore(isSupportReplaceRestoreString != "0").
+			Launch()
 
 	} else {
 
@@ -132,6 +144,8 @@ Options:
 	-source-password=Auth             The source redis authorization password, if empty then no use this parameter.
 	-destination-password=Auth        The destination redis authorization password, if empty then no use this parameter.
 	-sync-times=TIMES                 synchronization times, default loop execution. Do not fill in this parameter if you need to execute it in a loop
+	-thread-count=COUNT               Number of concurrent executions, if empty then use cpu cores count.
+	-replace-restore=[1|0]            If the destination-side not support restore command use replace option, please use 0 to off this feature, when off this feature, it will remove key before restore command executive, if empty then use replace option.
 
 Examples:
 	$ redis-transmission -mode=dump
@@ -146,9 +160,11 @@ Examples:
 	$ redis-transmission -mode=restore -host=127.0.0.1:6379 -password=Password -input=/tmp/dump.json
 	$ redis-transmission -mode=restore -host=127.0.0.1:6379 -password=Password -input=/tmp/dump.json
 	$ redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378
+	$ redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378 -thread-count=16
 	$ redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378 -database-count=16
 	$ redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378 -source-password=Password -destination-password=Password
 	$ redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378 -source-password=Password -destination-password=Password -database-count=1 -sync-times=1
+	$ redis-transmission -mode=sync -source=127.0.0.1:6379 -destination=127.0.0.1:6378 -source-password=Password -destination-password=Password -database-count=1 -replace-restore=0
 `)
 }
 
