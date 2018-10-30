@@ -12,12 +12,13 @@ import (
 )
 
 type Restorer struct {
-	Host           string
-	Password       string
-	Client         map[uint64]*redis.Client
-	Stream         *os.File
-	Count          uint64
-	jsonStringList chan string
+	Host                    string
+	Password                string
+	Client                  map[uint64]*redis.Client
+	Stream                  *os.File
+	Count                   uint64
+	jsonStringList          chan string
+	IsSupportReplaceRestore bool
 }
 
 func (r *Restorer) Init() {
@@ -66,10 +67,19 @@ func (r *Restorer) Restore() {
 			continue
 		}
 
-		if duration > 0 {
-			_, err = client.RestoreReplace(record.Key, duration, record.Value).Result()
+		if r.IsSupportReplaceRestore {
+			if duration > 0 {
+				_, err = client.RestoreReplace(record.Key, duration, record.Value).Result()
+			} else {
+				_, err = client.RestoreReplace(record.Key, 0, record.Value).Result()
+			}
 		} else {
-			_, err = client.RestoreReplace(record.Key, 0, record.Value).Result()
+			client.Del(record.Key).Result()
+			if duration > 0 {
+				_, err = client.Restore(record.Key, duration, record.Value).Result()
+			} else {
+				_, err = client.Restore(record.Key, 0, record.Value).Result()
+			}
 		}
 
 		if err != nil {
@@ -164,7 +174,7 @@ func (r *Restorer) PrintReport() {
 	log.Printf("Restored %d Record(s).\n", r.Count)
 }
 
-func Restore(host, password, path string) {
+func Restore(host, password, path string, isSupportReplaceRestore bool) {
 
 	fp, err := os.Open(path)
 	if err != nil {
@@ -173,9 +183,10 @@ func Restore(host, password, path string) {
 		return
 	}
 	restorer := &Restorer{
-		Host:     host,
-		Password: password,
-		Stream:   fp,
+		Host:                    host,
+		Password:                password,
+		Stream:                  fp,
+		IsSupportReplaceRestore: isSupportReplaceRestore,
 	}
 
 	restorer.Init()

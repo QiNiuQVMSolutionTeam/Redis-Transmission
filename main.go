@@ -73,7 +73,7 @@ func main() {
 
 	} else if mode == ModeRestore {
 
-		commands.Restore(host, password, input)
+		commands.Restore(host, password, input, isSupportReplaceRestoreString != "0")
 
 	} else if mode == ModeSync {
 
