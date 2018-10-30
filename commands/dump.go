@@ -265,7 +265,7 @@ func createNewClient(host, password string, db, poolSize int) *redis.Client {
 		Password:    password,
 		DB:          db,
 		PoolSize:    poolSize,
-		ReadTimeout: 10 * time.Second,
+		ReadTimeout: 60 * time.Second,
 	})
 }
 

@@ -131,7 +131,7 @@ func (r *Restorer) getClient(dbId uint64) (client *redis.Client) {
 		Addr:         r.Host,
 		Password:     r.Password,
 		DB:           int(dbId),
-		WriteTimeout: 10 * time.Second,
+		WriteTimeout: 60 * time.Second,
 	})
 
 	return r.Client[dbId]
