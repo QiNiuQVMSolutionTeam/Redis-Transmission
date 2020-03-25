@@ -2,15 +2,17 @@ package commands
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
-	"github.com/QiNiuQVMSolutionTeam/Redis-Transmission/lib"
-	"github.com/gin-gonic/gin/json"
-	"github.com/go-redis/redis"
-	"go.uber.org/atomic"
 	"log"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/go-redis/redis"
+	"go.uber.org/atomic"
+
+	"github.com/QiNiuQVMSolutionTeam/Redis-Transmission/lib"
 )
 
 type Dumper struct {

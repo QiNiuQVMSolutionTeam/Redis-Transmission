@@ -5,10 +5,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/go-redis/redis"
 	"log"
 	"os"
 	"time"
+
+	"github.com/go-redis/redis"
 )
 
 type Restorer struct {
