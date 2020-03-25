@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"github.com/QiNiuQVMSolutionTeam/Redis-Transmission/lib"
-	"github.com/gin-gonic/gin/json"
+	"encoding/json"
 	"github.com/go-redis/redis"
 	"go.uber.org/atomic"
 	"log"
