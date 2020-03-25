@@ -1,12 +1,14 @@
 package commands
 
 import (
-	"github.com/QiNiuQVMSolutionTeam/Redis-Transmission/lib"
-	"github.com/go-redis/redis"
-	"go.uber.org/atomic"
 	"log"
 	"sync"
 	"time"
+
+	"github.com/go-redis/redis"
+	"go.uber.org/atomic"
+
+	"github.com/QiNiuQVMSolutionTeam/Redis-Transmission/lib"
 )
 
 type Synchronizer struct {
@@ -148,7 +150,7 @@ func (round *SyncOneRound) ReadKeys() {
 	log.Printf("Scan database(%d) finished\n", round.DatabaseId)
 }
 
-func (round *SyncOneRound) SyncData() (uint64) {
+func (round *SyncOneRound) SyncData() uint64 {
 
 	var count atomic.Uint64
 	for {
@@ -241,7 +243,7 @@ func (round *SyncOneRound) ReadDestinationKeys() {
 	log.Printf("Scan destination database(%d) finished\n", round.DatabaseId)
 }
 
-func (round *SyncOneRound) CheckNotExistKeys() (uint64) {
+func (round *SyncOneRound) CheckNotExistKeys() uint64 {
 
 	var count atomic.Uint64
 	for {

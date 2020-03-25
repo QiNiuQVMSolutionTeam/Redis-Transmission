@@ -3,10 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/QiNiuQVMSolutionTeam/Redis-Transmission/commands"
 	"log"
 	"runtime"
 	"strconv"
+
+	"github.com/QiNiuQVMSolutionTeam/Redis-Transmission/commands"
 )
 
 const ModeDump = "dump"
